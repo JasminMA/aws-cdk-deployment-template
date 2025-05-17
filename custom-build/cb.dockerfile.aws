@@ -1,0 +1,38 @@
+# Define build arguments
+ARG AWS_ACCOUNT_ID
+ARG AWS_REGION
+ARG version
+
+# Use Amazon Corretto's Alpine-based image
+FROM ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/amazoncorretto-17-alpine-jdk:latest
+
+# Install only essential packages in a single layer with cleanup
+RUN apk update --no-cache && \
+    apk add --no-cache \
+        python3 \
+        curl && \
+    mkdir -p /app /scripts /opt/certs
+RUN apk add --no-cache aws-cli
+
+WORKDIR /app
+
+# Copy scripts with permissions in one step
+COPY --chmod=755 ./scripts/*.sh /scripts/
+
+# Copy JAR (last as it changes most frequently)
+COPY ./build/libs/*.jar /app/application.jar
+
+# Consolidated metadata and configurations
+LABEL name="your-service-name" \
+      version="$version"
+
+# Environment variables
+ENV SERVER_PORT=443 \
+    EXTERNAL_PORT=443 \
+    # Spring
+    SERVER_SHUTDOWN=graceful \
+    SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE=20s
+
+EXPOSE 443
+
+ENTRYPOINT ["/scripts/startup.sh"]
