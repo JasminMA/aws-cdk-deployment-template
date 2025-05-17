@@ -1,0 +1,1 @@
+Here is a text file explaining how we've made the repository public and what that means.
