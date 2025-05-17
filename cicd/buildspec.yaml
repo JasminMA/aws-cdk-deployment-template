@@ -1,0 +1,80 @@
+version: 0.2
+
+env:
+  shell: bash
+  parameter-store:
+    # Common parameters
+    SERVICE_KEYSTORE_PASSWORD: /config/${SERVICE_NAME}/service-keystore-password
+    CERTIFICATES_BUCKET_NAME: /config/certificates-s3-location
+    TEST_REPORTS_BUCKET_NAME: /config/test-reports/bucket-name
+    ENV_LABEL: /config/environment-class
+  variables:
+    LANG: C.UTF-8
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+      nodejs: 20
+    commands:
+      # System setup
+      - apt-get update && apt-get install -y dos2unix
+      # Enable debugging and strict error handling
+      - set -eux
+      # Add any additional installation steps here
+      
+  pre_build:
+    commands:
+      # Version checks
+      - echo "Checking tool versions..."
+      - java -version
+      - echo "Preparing shell scripts..."
+      - find . -type f -name "*.sh" -exec dos2unix {} \;
+      - find . -type f -name "*.sh" -exec chmod +x {} \;
+      - export VERSION=1.0.${CODEBUILD_BUILD_NUMBER}
+      
+  build:
+    commands:
+      # Build and test
+      - echo "Starting build and test phase"
+      - ./gradlew clean build
+
+      # Create and populate packed directory
+      - echo "Preparing packed directory..."
+      - mkdir -p ./packed
+      - cp build/libs/*.jar ./packed/
+      - cp -r scripts/* ./packed/ || true
+      - cp -r custom-build/scripts/* ./packed/ || true
+
+      # Upload test reports
+      - echo "Uploading test reports"
+      - |
+        if [ -d "./build/reports" ]; then
+          aws s3 cp ./build/reports s3://${TEST_REPORTS_BUCKET_NAME}/${SERVICE_NAME}/ --recursive
+        else
+          echo "Warning: Test reports directory not found"
+        fi
+        
+      # Docker configuration
+      - echo "Configuring Docker"
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+
+      # Build and publish Docker images
+      - echo "Building and publishing Docker images"
+      - bash ./custom-build/cb-build_and_publish.sh ./packed $VERSION $AWS_ACCOUNT_ID
+
+      # CDK synth
+      - echo "Synthesizing CDK stack"
+      - cd infrastructure
+      - npm ci
+      - npm run cdk synth -- -c tag=$VERSION -c stage=${ENV_LABEL}
+      - cd ..
+
+  post_build:
+    commands:
+      - echo Build completed on $(date)
+      
+cache:
+  paths:
+    - '/root/.gradle/**/*'
+    - '/root/.npm/**/*'
