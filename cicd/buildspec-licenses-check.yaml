@@ -1,0 +1,46 @@
+version: 0.2
+
+env:
+  shell: bash
+  parameter-store:
+    LICENSE_BUCKET_NAME: /config/oss-licenses/bucket-name
+    OWN_LICENSE_BUCKET_NAME: /config/oss-licenses/own-store/bucket-name
+  variables:
+    LANG: C.UTF-8
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+      nodejs: 20
+    commands:
+      - apt-get update
+      - apt-get install -y jq
+  
+  pre_build:
+    commands:
+      - echo "Preparing for license check"
+      - chmod +x ./cicd/check-dependencies.sh
+  
+  build:
+    commands:
+      - echo "Checking license compliance..."
+      - ./cicd/check-dependencies.sh
+      
+      # Upload license information to S3
+      - echo "Uploading license information"
+      - |
+        if [ -d "./build/reports/license" ]; then
+          aws s3 cp ./build/reports/license s3://${LICENSE_BUCKET_NAME}/${SERVICE_NAME}/ --recursive
+          aws s3 cp ./build/reports/license/license-dependency.json s3://${OWN_LICENSE_BUCKET_NAME}/${SERVICE_NAME}/license-dependency.json
+        else
+          echo "Warning: License reports directory not found"
+        fi
+  
+  post_build:
+    commands:
+      - echo "License check completed on $(date)"
+
+cache:
+  paths:
+    - '/root/.gradle/**/*'
