@@ -1,0 +1,56 @@
+{
+  "app": "npx ts-node --prefer-ts-exts bin/infrastructure.ts",
+  "watch": {
+    "include": [
+      "lib/**",
+      "bin/**"
+    ],
+    "exclude": [
+      "**/*.js",
+      "**/*.d.ts",
+      "node_modules",
+      "cdk.out",
+      "test"
+    ]
+  },
+  "context": {
+    "serviceName": "your-service-name",
+    "environments": {
+      "dev": {
+        "account": "111111111111",
+        "region": "eu-west-1",
+        "isProd": false,
+        "memory": 512,
+        "fargateCpu": 256,
+        "logRetentionDays": 7,
+        "desiredInstantCount": 1
+      },
+      "stage": {
+        "account": "222222222222",
+        "region": "eu-west-1",
+        "isProd": false,
+        "memory": 768,
+        "fargateCpu": 384,
+        "logRetentionDays": 14,
+        "desiredInstantCount": 1
+      },
+      "prod": {
+        "account": "333333333333",
+        "region": "eu-west-1",
+        "isProd": true,
+        "memory": 1024,
+        "fargateCpu": 512,
+        "logRetentionDays": 30,
+        "desiredInstantCount": 2
+      }
+    },
+    "@aws-cdk/core:stackRelativeExports": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/aws-s3:serverAccessLogsUseBucketPolicy": true,
+    "@aws-cdk/aws-ec2:restrictDefaultSecurityGroup": true,
+    "@aws-cdk/aws-rds:preventRenderingDeprecatedCredentials": true,
+    "@aws-cdk/aws-eks:nodegroupNameAttribute": true,
+    "@aws-cdk/aws-ec2:ebsDefaultGp3Volume": true
+  }
+}
